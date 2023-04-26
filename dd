@@ -1,0 +1,39 @@
+function coverbuild {
+  path=$1
+  function=$2
+  fuzzer=$3
+  tags=""
+
+  if [[ $#  -eq 4 ]]; then
+    tags="-tags $4"
+  fi
+  cd $path
+  fuzzed_package=`pwd | rev | cut -d'/' -f 1 | rev`
+  cp $GOPATH/ossfuzz_coverage_runner.go ./"${function,,}"_test.go
+  sed -i -e 's/FuzzFunction/'$function'/' ./"${function,,}"_test.go
+  sed -i -e 's/mypackagebeingfuzzed/'$fuzzed_package'/' ./"${function,,}"_test.go
+  sed -i -e 's/TestFuzzCorpus/Test'$function'Corpus/' ./"${function,,}"_test.go
+
+cat << DOG > $OUT/$fuzzer
+#/bin/sh
+  cd $OUT/$path
+  go test -run Test${function}Corpus -v $tags -coverprofile \$1 -coverpkg $coverpkg
+DOG
+
+  chmod +x $OUT/$fuzzer
+  #echo "Built script $OUT/$fuzzer"
+  #cat $OUT/$fuzzer
+  cd -
+}
+
+function compile_fuzzer {
+  # Inputs:
+  # $1: The package to fuzz, within go-ethereum
+  # $2: The name of the fuzzing function
+  # $3: The name to give to the final fuzzing-binary
+
+  path=$GOPATH/src/github.com/ethereum/go-ethereum/$1
+  func=$2
+  fuzzer=$3
+
+  echo "Building $fuzzer"
